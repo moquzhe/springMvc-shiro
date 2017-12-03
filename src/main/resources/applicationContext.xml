@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xsi:schemaLocation="http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.0.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+
+   <!--  <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="org.hsqldb.jdbcDriver"/>
+        <property name="url" value="jdbc:hsqldb:mem:shiro-spring"/>
+        <property name="username" value="sa"/>
+    </bean>
+    <bean id="bootstrapDataPopulator" class="org.apache.shiro.samples.spring.BootstrapDataPopulator">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+    <bean id="sampleManager" class="org.apache.shiro.samples.spring.DefaultSampleManager"/>
+ -->
+    <!-- =========================================================
+         Shiro Core Components - Not Spring Specific
+         ========================================================= -->
+    <!--安全管理器bean
+    	1.缓存技术：缓存管理
+    	2.realm:负责获取处理数据
+    -->
+    <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+        <property name="cacheManager" ref="cacheManager"/>
+        <!-- 当前会话模式 
+        <property name="sessionMode" value="native"/>-->
+        <!-- realm的实现类 -->
+        <property name="authenticator" ref="authenticator"></property>
+        <property name="authorizer" ref="authorizer"></property>
+    </bean>
+    
+   <!-- 自定义认证器 -->
+   	<bean id="authenticator" class="org.apache.shiro.authc.pam.ModularRealmAuthenticator">
+   		<property name="realms">
+   			<list>
+   				<ref bean="jdbcRealm"/>
+   			</list>	
+   		</property>
+   	</bean>
+   	
+   	<!-- 自定义授权器 -->
+   	<bean id="authorizer" class="org.apache.shiro.authz.ModularRealmAuthorizer">
+   		<property name="realms">
+   			<list>
+   				<ref bean="jdbcRealm"/>
+   			</list>	
+   		</property>
+   	</bean>
+    
+    <!-- shiroRealm实现类 -->
+    <bean id="jdbcRealm" class="org.mo.bean.ShiroBean">
+    	<property name="credentialsMatcher">
+    		<bean class="org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+    			<!-- hashAlgorithmName:加密算法，hashIterations:加密次数， hashSalted:盐值加密-->
+    			<property name="hashAlgorithmName" value="MD5"></property>
+    			<property name="hashIterations" value="1024"></property>
+    		</bean>
+    	</property>
+    </bean>
+
+    <!-- 使用的缓存技术：ehcache框架-->
+    <bean id="cacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+        <property name="cacheManagerConfigFile" value="classpath:ehcache.xml"/>
+    </bean>
+
+    <!-- =========================================================
+         Shiro Spring-specific integration
+         ========================================================= -->
+    <!-- 生命周期-->
+    <bean id="lifecycleBeanPostProcessor" class="org.apache.shiro.spring.LifecycleBeanPostProcessor"/>
+    <bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"
+          depends-on="lifecycleBeanPostProcessor"/>
+    <bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+        <property name="securityManager" ref="securityManager"/>
+    </bean>
+
+    <!-- 网络方面的-->
+    <bean id="secureRemoteInvocationExecutor" class="org.apache.shiro.spring.remoting.SecureRemoteInvocationExecutor">
+        <property name="securityManager" ref="securityManager"/>
+    </bean>
+
+    <!-- Define the Shiro Filter here (as a FactoryBean) instead of directly in web.xml -
+         web.xml uses the DelegatingFilterProxy to access this bean.  
+         This allows us to wire things with more control as well utilize nice Spring things such as
+         PropertiesPlaceholderConfigurer and abstract beans or anything else we might need: -->
+    <bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+        <property name="securityManager" ref="securityManager"/>
+        <property name="loginUrl" value="/login.jsp"/>
+        <property name="successUrl" value="/index.jsp"/>
+        <property name="unauthorizedUrl" value="/unauthorized.jsp"/>
+        <!-- The 'filters' property is not necessary since any declared javax.servlet.Filter bean
+             defined will be automatically acquired and available via its beanName in chain
+             definitions, but you can perform overrides or parent/child consolidated configuration
+             here if you like: -->
+        <!-- <property name="filters">
+            <util:map>
+                <entry key="aName" value-ref="someFilterPojo"/>
+            </util:map>
+        </property> -->
+        <property name="filterChainDefinitions">
+            <value>
+                /login.jsp = anon
+                /user/logout = logout
+                /user/login = anon
+                /admin.jsp = roles[管理员]
+                /user.jsp = roles[普通用户]
+                /** = authc
+            </value>
+        </property>
+    </bean>
+</beans>
